@@ -18,6 +18,8 @@
             SearchServiceClient serviceClient = CreateSearchServiceClient(configuration);
 
             Console.WriteLine("Deleting index...\n");
+
+            Console.WriteLine("Deleting index...\n");
             DeleteTestIndexIfExists(serviceClient);
 
             // Every top-level resource in Azure Search has an associated ETag that keeps track of which version
