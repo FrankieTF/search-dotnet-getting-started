@@ -1,14 +1,16 @@
 ﻿using System;
 using System.Configuration;
-using Microsoft.Azure.Search;
-using Microsoft.Azure.Search.Models;
+using Azure;
+using Azure.Search.Documents;
+using Azure.Search.Documents.Indexes;
+using Azure.Search.Documents.Models;
 
 namespace SimpleSearchMVCApp
 {
     public class FeaturesSearch
     {
-        private static ISearchServiceClient _searchClient;
-        private static ISearchIndexClient _indexClient;
+        private static SearchIndexClient searchIndexClient;
+        private static SearchClient searchClient;
 
         public static string errorMessage;
 
@@ -16,12 +18,12 @@ namespace SimpleSearchMVCApp
         {
             try
             {
-                string searchServiceName = ConfigurationManager.AppSettings["SearchServiceName"];
+                string searchServiceEndPoint = ConfigurationManager.AppSettings["SearchServiceEndPoint"];
                 string apiKey = ConfigurationManager.AppSettings["SearchServiceApiKey"];
 
                 // Create an HTTP reference to the catalog index
-                _searchClient = new SearchServiceClient(searchServiceName, new SearchCredentials(apiKey));
-                _indexClient = _searchClient.Indexes.GetClient("geonames");
+                searchIndexClient = new SearchIndexClient(new Uri(searchServiceEndPoint), new AzureKeyCredential(apiKey));
+                searchClient = searchIndexClient.GetSearchClient("geonames");
             }
             catch (Exception e)
             {
@@ -29,13 +31,13 @@ namespace SimpleSearchMVCApp
             }
         }
 
-        public DocumentSearchResult<Document> Search(string searchText)
+        public SearchResults<SearchDocument> Search(string searchText)
         {
             // Execute search based on query string
             try
             {
-                SearchParameters sp = new SearchParameters() { SearchMode = SearchMode.All };
-                return _indexClient.Documents.Search(searchText, sp);
+                SearchOptions so = new SearchOptions() { SearchMode = SearchMode.All };
+                return searchClient.Search<SearchDocument>(searchText, so);
             }
             catch (Exception ex)
             {

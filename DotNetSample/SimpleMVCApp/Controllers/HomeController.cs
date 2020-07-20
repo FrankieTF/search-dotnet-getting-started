@@ -1,9 +1,4 @@
-﻿using Microsoft.Azure.Search.Models;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Web;
-using System.Web.Mvc;
+﻿using System.Web.Mvc;
 
 namespace SimpleSearchMVCApp.Controllers
 {
@@ -27,7 +22,7 @@ namespace SimpleSearchMVCApp.Controllers
             return new JsonResult
             {
                 JsonRequestBehavior = JsonRequestBehavior.AllowGet,
-                Data = _featuresSearch.Search(q).Results
+                Data = _featuresSearch.Search(q).GetResults()
             };
         }
     }

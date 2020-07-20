@@ -1,8 +1,11 @@
-﻿using System;
+﻿using Azure;
+using Azure.Search.Documents;
+using Azure.Search.Documents.Indexes;
+using Azure.Search.Documents.Indexes.Models;
+using System;
+using System.Collections.Generic;
 using System.Configuration;
 using System.Threading;
-using Microsoft.Azure.Search;
-using Microsoft.Azure.Search.Models;
 
 namespace DataIndexer
 {
@@ -12,18 +15,20 @@ namespace DataIndexer
         private const string UsgsDataSource = "usgs-datasource";
         private const string UsgsIndexer = "usgs-indexer";
 
-        private static ISearchServiceClient _searchClient;
-        private static ISearchIndexClient _indexClient;
+        private static SearchIndexClient _searchIndexClient;
+        private static SearchClient _searchClient;
+        private static SearchIndexerClient _searchIndexerClient;
 
         // This Sample shows how to delete, create, upload documents and query an index
         static void Main(string[] args)
         {
-            string searchServiceName = ConfigurationManager.AppSettings["SearchServiceName"];
+            string searchServiceEndPoint = ConfigurationManager.AppSettings["SearchServiceEndPoint"];
             string apiKey = ConfigurationManager.AppSettings["SearchServiceApiKey"];
 
             // Create an HTTP reference to the catalog index
-            _searchClient = new SearchServiceClient(searchServiceName, new SearchCredentials(apiKey));
-            _indexClient = _searchClient.Indexes.GetClient(GeoNamesIndex);
+            _searchIndexClient = new SearchIndexClient(new Uri(searchServiceEndPoint), new AzureKeyCredential(apiKey));
+            _searchIndexerClient = new SearchIndexerClient(new Uri(searchServiceEndPoint), new AzureKeyCredential(apiKey));
+            _searchClient = _searchIndexClient.GetSearchClient(GeoNamesIndex);
 
             Console.WriteLine("{0}", "Deleting index, data source, and indexer...\n");
             if (DeleteIndexingResources())
@@ -42,9 +47,9 @@ namespace DataIndexer
             // Delete the index, data source, and indexer.
             try
             {
-                _searchClient.Indexes.Delete(GeoNamesIndex);
-                _searchClient.DataSources.Delete(UsgsDataSource);
-                _searchClient.Indexers.Delete(UsgsIndexer);
+                _searchIndexClient.DeleteIndex(GeoNamesIndex);
+                _searchIndexerClient.DeleteDataSourceConnection(UsgsDataSource);
+                _searchIndexerClient.DeleteIndexer(UsgsIndexer);
             }
             catch (Exception ex)
             {
@@ -61,29 +66,25 @@ namespace DataIndexer
             // Create the Azure Search index based on the included schema
             try
             {
-                var definition = new Index()
-                {
-                    Name = GeoNamesIndex,
-                    Fields = new[] 
-                    { 
-                        new Field("FEATURE_ID",     DataType.String)         { IsKey = true,  IsSearchable = false, IsFilterable = false, IsSortable = false, IsFacetable = false, IsRetrievable = true},
-                        new Field("FEATURE_NAME",   DataType.String)         { IsKey = false, IsSearchable = true,  IsFilterable = true,  IsSortable = true,  IsFacetable = false, IsRetrievable = true},
-                        new Field("FEATURE_CLASS",  DataType.String)         { IsKey = false, IsSearchable = true,  IsFilterable = true,  IsSortable = true,  IsFacetable = false, IsRetrievable = true},
-                        new Field("STATE_ALPHA",    DataType.String)         { IsKey = false, IsSearchable = true,  IsFilterable = true,  IsSortable = true,  IsFacetable = false, IsRetrievable = true},
-                        new Field("STATE_NUMERIC",  DataType.Int32)          { IsKey = false, IsSearchable = false, IsFilterable = true,  IsSortable = true,  IsFacetable = true,  IsRetrievable = true},
-                        new Field("COUNTY_NAME",    DataType.String)         { IsKey = false, IsSearchable = true,  IsFilterable = true,  IsSortable = true,  IsFacetable = false, IsRetrievable = true},
-                        new Field("COUNTY_NUMERIC", DataType.Int32)          { IsKey = false, IsSearchable = false, IsFilterable = true,  IsSortable = true,  IsFacetable = true,  IsRetrievable = true},
-                        new Field("ELEV_IN_M",      DataType.Int32)          { IsKey = false, IsSearchable = false, IsFilterable = true,  IsSortable = true,  IsFacetable = true,  IsRetrievable = true},
-                        new Field("ELEV_IN_FT",     DataType.Int32)          { IsKey = false, IsSearchable = false, IsFilterable = true,  IsSortable = true,  IsFacetable = true,  IsRetrievable = true},
-                        new Field("MAP_NAME",       DataType.String)         { IsKey = false, IsSearchable = true,  IsFilterable = true,  IsSortable = true,  IsFacetable = false, IsRetrievable = true},
-                        new Field("DESCRIPTION",    DataType.String)         { IsKey = false, IsSearchable = true,  IsFilterable = false, IsSortable = false, IsFacetable = false, IsRetrievable = true},
-                        new Field("HISTORY",        DataType.String)         { IsKey = false, IsSearchable = true,  IsFilterable = false, IsSortable = false, IsFacetable = false, IsRetrievable = true},
-                        new Field("DATE_CREATED",   DataType.DateTimeOffset) { IsKey = false, IsSearchable = false, IsFilterable = true,  IsSortable = true,  IsFacetable = true,  IsRetrievable = true},
-                        new Field("DATE_EDITED",    DataType.DateTimeOffset) { IsKey = false, IsSearchable = false, IsFilterable = true,  IsSortable = true,  IsFacetable = true,  IsRetrievable = true}
-                    }
-                };
+                List<SearchField> searchFields = new List<SearchField>();
+                searchFields.Add(new SearchField("FEATURE_ID", SearchFieldDataType.String) { IsKey = true, IsSearchable = false, IsFilterable = false, IsSortable = false, IsFacetable = false });
+                searchFields.Add(new SearchField("FEATURE_NAME", SearchFieldDataType.String) { IsKey = false, IsSearchable = true, IsFilterable = true, IsSortable = true, IsFacetable = false });
+                searchFields.Add(new SearchField("FEATURE_CLASS", SearchFieldDataType.String) { IsKey = false, IsSearchable = true, IsFilterable = true, IsSortable = true, IsFacetable = false });
+                searchFields.Add(new SearchField("STATE_ALPHA", SearchFieldDataType.String) { IsKey = false, IsSearchable = true, IsFilterable = true, IsSortable = true, IsFacetable = false });
+                searchFields.Add(new SearchField("STATE_NUMERIC", SearchFieldDataType.Int32) { IsKey = false, IsSearchable = false, IsFilterable = true, IsSortable = true, IsFacetable = true });
+                searchFields.Add(new SearchField("COUNTY_NAME", SearchFieldDataType.String) { IsKey = false, IsSearchable = true, IsFilterable = true, IsSortable = true, IsFacetable = false });
+                searchFields.Add(new SearchField("COUNTY_NUMERIC", SearchFieldDataType.Int32) { IsKey = false, IsSearchable = false, IsFilterable = true, IsSortable = true, IsFacetable = true });
+                searchFields.Add(new SearchField("ELEV_IN_M", SearchFieldDataType.Int32) { IsKey = false, IsSearchable = false, IsFilterable = true, IsSortable = true, IsFacetable = true });
+                searchFields.Add(new SearchField("ELEV_IN_FT", SearchFieldDataType.Int32) { IsKey = false, IsSearchable = false, IsFilterable = true, IsSortable = true, IsFacetable = true });
+                searchFields.Add(new SearchField("MAP_NAME", SearchFieldDataType.String) { IsKey = false, IsSearchable = true, IsFilterable = true, IsSortable = true, IsFacetable = false });
+                searchFields.Add(new SearchField("DESCRIPTION", SearchFieldDataType.String) { IsKey = false, IsSearchable = true, IsFilterable = false, IsSortable = false, IsFacetable = false });
+                searchFields.Add(new SearchField("HISTORY", SearchFieldDataType.String) { IsKey = false, IsSearchable = true, IsFilterable = false, IsSortable = false, IsFacetable = false });
+                searchFields.Add(new SearchField("DATE_CREATED", SearchFieldDataType.DateTimeOffset) { IsKey = false, IsSearchable = false, IsFilterable = true, IsSortable = true, IsFacetable = true });
+                searchFields.Add(new SearchField("DATE_EDITED", SearchFieldDataType.DateTimeOffset) { IsKey = false, IsSearchable = false, IsFilterable = true, IsSortable = true, IsFacetable = true });
 
-                _searchClient.Indexes.Create(definition);
+                var definition = new SearchIndex(GeoNamesIndex, searchFields);
+
+                _searchIndexClient.CreateIndex(definition);
             }
             catch (Exception ex)
             {
@@ -97,15 +98,14 @@ namespace DataIndexer
             // This will use the Azure Search Indexer to synchronize data from Azure SQL to Azure Search
             Console.WriteLine("{0}", "Creating Data Source...\n");
             var dataSource =
-                DataSource.AzureSql(
-                    name: UsgsDataSource,
-                    sqlConnectionString: "Server=tcp:azs-playground.database.windows.net,1433;Database=usgs;User ID=reader;Password=EdrERBt3j6mZDP;Trusted_Connection=False;Encrypt=True;Connection Timeout=30;",
-                    tableOrViewName: "GeoNamesRI",
-                    description: "USGS Dataset");
-
+                new SearchIndexerDataSourceConnection(
+                    UsgsDataSource,
+                    SearchIndexerDataSourceType.AzureSql,
+                    "Server=tcp:azs-playground.database.windows.net,1433;Database=usgs;User ID=reader;Password=EdrERBt3j6mZDP;Trusted_Connection=False;Encrypt=True;Connection Timeout=30;",
+                    new SearchIndexerDataContainer("GeoNamesRI"));
             try
             {
-                _searchClient.DataSources.Create(dataSource);
+                _searchIndexerClient.CreateDataSourceConnection(dataSource);
             }
             catch (Exception ex)
             {
@@ -115,18 +115,14 @@ namespace DataIndexer
 
             Console.WriteLine("{0}", "Creating Indexer and syncing data...\n");
 
-            var indexer =
-                new Indexer()
-                {
-                    Name = UsgsIndexer,
-                    Description = "USGS data indexer",
-                    DataSourceName = dataSource.Name,
-                    TargetIndexName = GeoNamesIndex
-                };
+            var indexer = new SearchIndexer(UsgsIndexer, dataSource.Name, GeoNamesIndex)
+            {
+                Description = "USGS data indexer",
+            };
 
             try
             {
-                _searchClient.Indexers.Create(indexer);
+                _searchIndexerClient.CreateIndexer(indexer);
             }
             catch (Exception ex)
             {
@@ -138,11 +134,11 @@ namespace DataIndexer
             Console.WriteLine("{0}", "Synchronization running...\n");
             while (running)
             {
-                IndexerExecutionInfo status = null;
+                SearchIndexerStatus status = null;
 
                 try
                 {
-                    status = _searchClient.Indexers.GetStatus(indexer.Name);
+                    status = _searchIndexerClient.GetIndexerStatus(indexer.Name);
                 }
                 catch (Exception ex)
                 {
